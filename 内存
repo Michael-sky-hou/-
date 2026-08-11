@@ -1,0 +1,44 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* ---------- 数据结构 ---------- */
+
+typedef struct AllocBlock {
+    char id[16];
+    long long start;
+    long long size;
+    struct AllocBlock *next;
+} AllocBlock;
+
+typedef struct FreeBlock {
+    long long start;
+    long long size;
+    struct FreeBlock *next;
+} FreeBlock;
+
+/* ---------- 全局状态 ---------- */
+
+static long long    g_total = 0;
+static AllocBlock  *g_alloc = NULL;  /* 已分配块链表，按起始地址升序 */
+static FreeBlock   *g_free  = NULL;  /* 空闲块链表，按起始地址升序    */
+
+/* ---------- 工具函数 ---------- */
+
+static void cleanup(void) {
+    AllocBlock *ab, *an;
+    FreeBlock  *fb, *fn;
+    for (ab = g_alloc; ab; ab = an) { an = ab->next; free(ab); }
+    for (fb = g_free;  fb; fb = fn) { fn = fb->next; free(fb); }
+    g_alloc = NULL;
+    g_free  = NULL;
+}
+
+/* ---------- 已分配链表操作 ---------- */
+
+static AllocBlock *find_alloc(const char *id) {
+    AllocBlock *p;
+    for (p = g_alloc; p; p = p->next)
+        if (strcmp(p->id, id) == 0) return p;
+    return NULL;
+}
