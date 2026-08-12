@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---------- 数据结构 ---------- */
-
 typedef struct AllocBlock {
     char id[16];
     long long start;
@@ -17,13 +15,13 @@ typedef struct FreeBlock {
     struct FreeBlock *next;
 } FreeBlock;
 
-/* ---------- 全局状态 ---------- */
+/*  全局状态  */
 
 static long long    g_total = 0;
 static AllocBlock  *g_alloc = NULL;  /* 已分配块链表，按起始地址升序 */
 static FreeBlock   *g_free  = NULL;  /* 空闲块链表，按起始地址升序    */
 
-/* ---------- 工具函数 ---------- */
+/工具函数 /
 
 static void cleanup(void) {
     AllocBlock *ab, *an;
@@ -34,11 +32,93 @@ static void cleanup(void) {
     g_free  = NULL;
 }
 
-/* ---------- 已分配链表操作 ---------- */
+/*  已分配链表操作 */
 
 static AllocBlock *find_alloc(const char *id) {
     AllocBlock *p;
     for (p = g_alloc; p; p = p->next)
         if (strcmp(p->id, id) == 0) return p;
     return NULL;
+}
+static void insert_alloc_sorted(AllocBlock *node) {
+    AllocBlock *p;
+    if (!g_alloc || g_alloc->start >= node->start) {
+        node->next = g_alloc;
+        g_alloc = node;
+        return;
+    }
+    p = g_alloc;
+    while (p->next && p->next->start < node->start) p = p->next;
+    node->next = p->next;
+    p->next = node;
+}
+
+static AllocBlock *remove_alloc(const char *id) {
+    AllocBlock **pp;
+    AllocBlock *t;
+    pp = &g_alloc;
+    while (*pp) {
+        if (strcmp((*pp)->id, id) == 0) {
+            t = *pp;
+            *pp = t->next;
+            t->next = NULL;
+            return t;
+        }
+        pp = &(*pp)->next;
+    }
+    return NULL;
+}
+
+/ 空闲链表操作 /
+
+static void insert_free_sorted(FreeBlock *node) {
+    FreeBlock *p;
+    if (!g_free || g_free->start >= node->start) {
+        node->next = g_free;
+        g_free = node;
+        return;
+    }
+    p = g_free;
+    while (p->next && p->next->start < node->start) p = p->next;
+    node->next = p->next;
+    p->next = node;
+}
+
+static void merge_free(void) {
+    FreeBlock *p;
+    FreeBlock *q;
+    p = g_free;
+    while (p && p->next) {
+        if (p->start + p->size == p->next->start) {
+            q = p->next;
+            p->size += q->size;
+            p->next = q->next;
+            free(q);
+        } else {
+            p = p->next;
+        }
+    }
+}
+
+/找到能容纳size、尺寸最小，同尺寸取起始地址更小的空闲块
+   找到的前驱节点存入 prev_out /
+static FreeBlock *best_fit(long long size, FreeBlock **prev_out) {
+    FreeBlock *best, *best_prev;
+    FreeBlock *p, *prev;
+    best = NULL; best_prev = NULL;
+    p = g_free; prev = NULL;
+    while (p) {
+        if (p->size >= size) {
+            if (!best ||
+                p->size < best->size ||
+                (p->size == best->size && p->start < best->start)) {
+                best = p;
+                best_prev = prev;
+            }
+        }
+        prev = p;
+        p = p->next;
+    }
+    if (prev_out) *prev_out = best_prev;
+    return best;
 }
