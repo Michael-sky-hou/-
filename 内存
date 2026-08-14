@@ -122,3 +122,98 @@ static FreeBlock *best_fit(long long size, FreeBlock **prev_out) {
     if (prev_out) *prev_out = best_prev;
     return best;
 }
+/ALLOC 申请内存指令/
+
+static void cmd_alloc(const char *id, long long size) {
+    FreeBlock *prev;
+    FreeBlock *fb;
+    AllocBlock *ab;
+    long long start;
+    if (find_alloc(id)) {
+        printf("ALLOC_FAILED %s DUPLICATE\n", id);
+        return;
+    }
+    fb = best_fit(size, &prev);
+    if (!fb) {
+        printf("ALLOC_FAILED %s NO_SPACE\n", id);
+        return;
+    }
+    start = fb->start;
+    if (fb->size == size) {
+        /* 整块分配，直接删除该空闲块 */
+        if (prev) prev->next = fb->next;
+        else      g_free = fb->next;
+        free(fb);
+    } else {
+        /* 从低地址分割，剩余部分保留为空闲块 */
+        fb->start += size;
+        fb->size  -= size;
+    }
+    ab = (AllocBlock *)malloc(sizeof(AllocBlock));
+    strcpy(ab->id, id);
+    ab->start = start;
+    ab->size  = size;
+    ab->next  = NULL;
+    insert_alloc_sorted(ab);
+    printf("ALLOCATED %s %lld\n", id, start);
+}
+
+/FREE 释放内存指令/
+
+static void cmd_free(const char *id) {
+    AllocBlock *ab;
+    FreeBlock  *fb;
+    long long start, size;
+    ab = remove_alloc(id);
+    if (!ab) {
+        printf("FREE_FAILED %s NOT_FOUND\n", id);
+        return;
+    }
+    start = ab->start;
+    size  = ab->size;
+    free(ab);
+    fb = (FreeBlock *)malloc(sizeof(FreeBlock));
+    fb->start = start;
+    fb->size  = size;
+    fb->next  = NULL;
+    insert_free_sorted(fb);
+    merge_free();
+    printf("FREED %s %lld %lld\n", id, start, size);
+}
+
+/ QUERY 查询内存指令 /
+
+static void cmd_query(const char *id) {
+    AllocBlock *ab;
+    ab = find_alloc(id);
+    if (!ab) {
+        printf("BLOCK_NOT_FOUND %s\n", id);
+        return;
+    }
+    printf("BLOCK %s %lld %lld\n", id, ab->start, ab->size);
+}
+
+/DUMP 打印内存状态指令 /
+
+static void cmd_dump(void) {
+    int k, t;
+    AllocBlock *pa;
+    FreeBlock  *pf;
+    k = 0; t = 0;
+    for (pa = g_alloc; pa; pa = pa->next) k++;
+    for (pf = g_free;  pf; pf = pf->next) t++;
+    printf("ALLOCATED_BLOCKS %d\n", k);
+    for (pa = g_alloc; pa; pa = pa->next)
+        printf("%s %lld %lld\n", pa->id, pa->start, pa->size);
+    printf("FREE_BLOCKS %d\n", t);
+    for (pf = g_free; pf; pf = pf->next)
+        printf("%lld %lld\n", pf->start, pf->size);
+}
+
+/COMPACT 内存紧凑整理指令（已修复多余内存分配）  /
+
+typedef struct {
+    char id[16];
+    long long old_start;
+    long long new_start;
+} MoveInfo;
