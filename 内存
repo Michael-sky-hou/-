@@ -217,3 +217,33 @@ typedef struct {
     long long old_start;
     long long new_start;
 } MoveInfo;
+static int cmp_moves(const void *a, const void *b) {
+    const MoveInfo *ma = (const MoveInfo *)a;
+    const MoveInfo *mb = (const MoveInfo *)b;
+    if (ma->new_start < mb->new_start) return -1;
+    if (ma->new_start > mb->new_start) return 1;
+    return 0;
+}
+
+static void cmd_compact(void) {
+    int n, k, i;
+    AllocBlock *pa;
+    MoveInfo *moves = NULL;  // 初始置空，不再无意义分配
+    long long new_addr;
+    long long remain;
+    long long old_s, new_s;
+
+    // 清空所有原有空闲块
+    {
+        FreeBlock *fb, *fn;
+        for (fb = g_free; fb; fb = fn) { fn = fb->next; free(fb); }
+        g_free = NULL;
+    }
+    // 统计已分配块总数
+    n = 0;
+    for (pa = g_alloc; pa; pa = pa->next) n++;
+
+    // 仅当存在已分配块时才分配移动记录数组
+    if (n > 0) {
+        moves = (MoveInfo *)malloc(sizeof(MoveInfo) * n);
+    }
