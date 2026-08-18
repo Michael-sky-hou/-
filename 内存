@@ -247,3 +247,57 @@ static void cmd_compact(void) {
     if (n > 0) {
         moves = (MoveInfo *)malloc(sizeof(MoveInfo) * n);
     }
+ k = 0;
+    new_addr = 0;
+    for (pa = g_alloc; pa; pa = pa->next) {
+        old_s = pa->start;
+        new_s = new_addr;
+        if (old_s != new_s) {
+            strcpy(moves[k].id, pa->id);
+            moves[k].old_start = old_s;
+            moves[k].new_start = new_s;
+            k++;
+        }
+        pa->start = new_s;
+        new_addr += pa->size;
+    }
+
+    // 创建尾部唯一空闲块
+    remain = g_total - new_addr;
+    if (remain > 0) {
+        FreeBlock *fb = (FreeBlock *)malloc(sizeof(FreeBlock));
+        fb->start = new_addr;
+        fb->size  = remain;
+        fb->next  = NULL;
+        g_free = fb;
+    }
+
+    // 仅存在移动记录时才排序并输出
+    printf("COMPACTED %d\n", k);
+    if (k > 0 && moves != NULL) {
+        qsort(moves, k, sizeof(MoveInfo), cmp_moves);
+        for (i = 0; i < k; i++)
+            printf("%s %lld %lld\n", moves[i].id, moves[i].old_start, moves[i].new_start);
+    }
+
+    // 释放移动数组
+    if (moves != NULL) {
+        free(moves);
+    }
+}
+/ 主函数 /
+
+int main(void) {
+    int Q;
+    int i;
+    char op[16];
+    char id[16];
+    long long size;
+    if (scanf("%lld %d", &g_total, &Q) != 2) return 0;
+
+    /* 初始化：整块内存作为初始空闲块 */
+    g_free = (FreeBlock *)malloc(sizeof(FreeBlock));
+    g_free->start = 0;
+    g_free->size  = g_total;
+    g_free->next  = NULL;
+    g_alloc = NULL;
