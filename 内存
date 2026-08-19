@@ -301,3 +301,24 @@ int main(void) {
     g_free->size  = g_total;
     g_free->next  = NULL;
     g_alloc = NULL;
+for (i = 0; i < Q; i++) {
+        if (scanf("%s", op) != 1) break;
+        if (strcmp(op, "ALLOC") == 0) {
+            scanf("%s %lld", id, &size);
+            cmd_alloc(id, size);
+        } else if (strcmp(op, "FREE") == 0) {
+            scanf("%s", id);
+            cmd_free(id);
+        } else if (strcmp(op, "QUERY") == 0) {
+            scanf("%s", id);
+            cmd_query(id);
+        } else if (strcmp(op, "COMPACT") == 0) {
+            cmd_compact();
+        } else if (strcmp(op, "DUMP") == 0) {
+            cmd_dump();
+        }
+    }
+
+    cleanup();
+    return 0;
+}
